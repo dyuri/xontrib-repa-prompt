@@ -1,4 +1,5 @@
 """Custom prompt based on my old powerlevel9k zsh prompt.
+Heavily inspired by: https://github.com/santagada/xontrib-powerline/
 """
 
 from collections import namedtuple
@@ -13,14 +14,23 @@ SEPARATORS = {
 
 THEMES = {
     'repa': {
-        'C1': 'WHITE',
+        'C1': '#FFF',
         'B1': '#333',
-        'C2': 'WHITE',
+        'C2': '#FFF',
         'B2': '#555',
     }
 }
 
 SECTIONS = {}
+
+
+DEFAULTS = {
+    'RP_SEPARATORS': SEPARATORS['powerline'],
+    'RP_THEME': THEMES['repa'],
+    'RP_PROMPT': 'who>cwd>alma>beka',
+    'RP_PROMPT2': '❯❯❯',
+    'RP_RPROMPT': '<eger',
+}
 
 
 def alias(f):
@@ -31,6 +41,13 @@ def alias(f):
 def register_section(f):
     SECTIONS[f.__name__] = f
     return f
+
+
+def eval_section(section, theme):
+    bg = theme[section.bg() if callable(section.bg) else section.bg]
+    fg = theme[section.fg() if callable(section.fg) else section.fg]
+    content = section.content() if callable(section.content) else section.content
+    return Section(content, fg, bg)
 
 
 @register_section
@@ -53,10 +70,35 @@ def rp_prompt_builder(promptstring, right=False):
     sep = ">" if not right else "<"
     parts = [SECTIONS[part]() if part in SECTIONS else str2section(part) for part in promptstring.split(sep)]
 
-    # TODO
-    prompt_parts = ['{BACKGROUND_' + theme[part.bg] + '}{' + theme[part.fg] + '}' + part.content for part in parts]
+    def prompt():
+        sections = [eval_section(part, theme) for part in parts]
 
-    return '|'.join(prompt_parts)
+        p = []
+        size = len(sections)
+        sep1 = separators[0]
+        sep2 = separators[2]
+        for i, sec in enumerate(sections):
+            last = (i == size - 1)
+            first = (i == 0)
+
+            if first:
+                p.append('{BACKGROUND_%s}' % sec.bg)
+
+            p.append('{%s}%s' % (sec.fg, sec.content))
+
+            if last:
+                p.append('{NO_COLOR}{%s}%s{NO_COLOR} ' % (sec.bg, sep1))
+            else:
+                bg1 = sec.bg
+                bg2 = sections[i + 1].bg
+                if bg1 == bg2:
+                    p.append('%s' % sep2)
+                else:
+                    p.append('{BACKGROUND_%s}{%s}%s' % (bg2, bg1, sep1))
+
+        return ''.join(p)
+
+    return prompt
 
 
 @alias
@@ -93,7 +135,7 @@ def rp_set_theme(args):
     elif (args[0] not in THEMES):
         print('you need to select theme from the following ones:')
         for t in THEMES:
-            print(f'  - {s}')
+            print(f'  - {t}')
         return
 
     theme = THEMES[args[0]]
@@ -102,18 +144,17 @@ def rp_set_theme(args):
 
 
 @alias
-def rp_build_prompt(args=None):
+def rp_build_prompt():
 
     # __xonsh__.enx["PROMPT"] = "{env_name}{BOLD_GREEN}{user}@{hostname}{BOLD_BLUE} {cwd} {branch_name}{NO_COLOR}\n> "
-    __xonsh__.env["PROMPT"] = rp_prompt_builder("who>cwd>$")
+    __xonsh__.env["PROMPT"] = rp_prompt_builder(__xonsh__.env["RP_PROMPT"])
     __xonsh__.env["RIGHT_PROMPT"] = "< eger"
 
 
 def rp_init():
-    if 'RP_SEPARATORS' not in __xonsh__.env:
-        rp_set_separators(['powerline'])
-    if 'RP_THEME' not in __xonsh__.env:
-        rp_set_theme(['repa'])
+    for setting in DEFAULTS:
+        if setting not in __xonsh__.env:
+            __xonsh__.env[setting] = DEFAULTS[setting]
 
     rp_build_prompt()
 
