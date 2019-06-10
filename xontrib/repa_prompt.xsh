@@ -4,6 +4,8 @@ Heavily inspired by: https://github.com/santagada/xontrib-powerline/
 
 from collections import namedtuple
 from xonsh.platform import ptk_shell_type
+from time import strftime
+from xonsh import prompt
 
 __all__ = ()
 
@@ -11,6 +13,11 @@ Section = namedtuple('Section', ['content', 'fg', 'bg'])
 
 SEPARATORS = {
     'powerline': '',
+    'round': '',
+    'down': '',
+    'up': '',
+    'flame': '',
+    'squares': '',
 }
 
 THEMES = {
@@ -24,13 +31,12 @@ THEMES = {
 
 SECTIONS = {}
 
-
 DEFAULTS = {
     'RP_SEPARATORS': SEPARATORS['powerline'],
     'RP_THEME': THEMES['repa'],
-    'RP_PROMPT': 'who>cwd>alma>{user}',
+    'RP_PROMPT': 'who>cwd>alma>{user}>branch',
     'RP_PROMPT2': '❯❯❯',
-    'RP_RPROMPT': 'alma<eger<cwd',
+    'RP_RPROMPT': 'rtn<timing<time',
     'RP_MULTILINE_PROMPT': '❯',
     'RP_TITLE': '{current_job:{} | }{cwd} | {user}@{hostname}',
     'RP_TOOLBAR': None,
@@ -50,11 +56,12 @@ def register_section(f):
     return f
 
 
-def eval_section(section, theme):
+def eval_section(section_str, theme):
+    section = SECTIONS[section_str]() if section_str in SECTIONS else str2section(section_str)
     if section:
-        bg = theme[section.bg() if callable(section.bg) else section.bg]
-        fg = theme[section.fg() if callable(section.fg) else section.fg]
-        content = section.content() if callable(section.content) else section.content
+        content, fg, bg = section
+        bg = theme[bg] if bg in theme else bg
+        fg = theme[fg] if fg in theme else fg
         if content:
             return Section(content, fg, bg)
 
@@ -69,17 +76,63 @@ def cwd():
     return Section(" {cwd} ", "C2", "B2")
 
 
-# TODO remove
-import random
+# TODO colors
 @register_section
-def alma():
-    def cica():
-        if random.random() > .5:
-            return None
-        return ' cica '
-    return Section(cica, 'C2', 'B1')
+def timing():
+    if __xonsh__.history and __xonsh__.history.tss:
+        tss = __xonsh__.history.tss[-1]
+        return Section(f" {(tss[1] - tss[0]):.2f}s ", 'WHITE', '#444')
 
 
+# TODO colors
+@register_section
+def time():
+    return Section(strftime(' %H:%M  '), 'BOLD_#FFF', 'BLUE')
+
+
+# TODO colors
+@register_section
+def branch():
+    branch = prompt.vc.current_branch()
+    if branch:
+        dwd = prompt.vc.dirty_working_directory()
+        if dwd is None:
+            # timeout
+            bgcolor = '#FD4'
+        elif dwd:
+            # dirty
+            bgcolor = '#E30'
+        else:
+            # clean
+            bgcolor = '#4F4'
+
+        return Section(f'  {branch} ', '#000', bgcolor)
+
+
+# TODO colors
+@register_section
+def virtualenv():
+    if __xonsh__.env['PROMPT_FIELDS']['env_name']():
+        return Section(' 🐍 {env_name} ', 'INTENSE_CYAN', 'BLUE')
+
+
+# TODO colors
+@register_section
+def rtn():
+    if __xonsh__.history and __xonsh__.history.rtns:
+        rtn = __xonsh__.history.rtns[-1]
+        if rtn:
+            fg = '#A00'
+            bg = '#FFF'
+            mark = ''
+        else:
+            fg = '#4F4'
+            bg = '#666'
+            mark = ''
+
+        return Section(f' {mark} ', fg, bg)
+
+# TODO color support
 def str2section(txt):
     return Section(f" {txt} ", "C1", "B1")
 
@@ -90,12 +143,11 @@ def rp_prompt_builder(promptstring, right=False):
     sep = ">" if not right else "<"
     sep1 = separators[0] if not right else separators[1]
     sep2 = separators[2] if not right else separators[3]
-    parts = [SECTIONS[part]() if part in SECTIONS else str2section(part) for part in promptstring.split(sep)]
 
     def prompt():
         # evaluate section functions
         sections = []
-        for part in parts:
+        for part in promptstring.split(sep):
             section = eval_section(part, theme)
             if section:
                 sections.append(section)
