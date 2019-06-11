@@ -3,47 +3,66 @@ Heavily inspired by: https://github.com/santagada/xontrib-powerline/
 """
 
 from collections import namedtuple
-from xonsh.platform import ptk_shell_type
 from time import strftime
+from xonsh.platform import ptk_shell_type
 from xonsh import prompt
 
 __all__ = ()
 
-Section = namedtuple('Section', ['content', 'fg', 'bg'])
+Section = namedtuple("Section", ["content", "fg", "bg"])
 
 SEPARATORS = {
-    'powerline': '',
-    'round': '',
-    'down': '',
-    'up': '',
-    'flame': '',
-    'squares': '',
+    "powerline": "",
+    "round": "",
+    "down": "",
+    "up": "",
+    "flame": "",
+    "squares": "",
 }
 
 THEMES = {
-    'repa': {
-        'C1': '#FFF',
-        'B1': '#555',
-        'C2': '#AFC',
-        'B2': '#888',
+    # material colors
+    "repa": {
+        "default_fg": "#00BCD4",
+        "default_bg": "#666",
+        "who_fg": "BOLD_#333",
+        "who_bg": "#CDDC39",
+        "cwd_fg": "#CDDC39",
+        "cwd_bg": "#555",
+        "branch_fg_unknown": "#FF9800",
+        "branch_fg_dirty": "#E91E63",
+        "branch_fg_clean": "#8BC34A",
+        "branch_bg_unknown": "#333",
+        "branch_bg_dirty": "#333",
+        "branch_bg_clean": "#333",
+        "timing_fg": "#666",
+        "timing_bg": "#222",
+        "rtn_fg_ok": "#8BC34A",
+        "rtn_fg_error": "#C62828",
+        "rtn_bg_ok": "#444",
+        "rtn_bg_error": "#FFF",
+        "time_fg": "#FFC107",
+        "time_bg": "#666",
+        "virtualenv_fg": "#00BCD4",
+        "virtualenv_bg": "#444",
     }
 }
 
 SECTIONS = {}
 
 DEFAULTS = {
-    'RP_SEPARATORS': SEPARATORS['powerline'],
-    'RP_THEME': THEMES['repa'],
-    'RP_PROMPT': 'who>cwd>alma>{user}>branch',
-    'RP_PROMPT2': '❯❯❯',
-    'RP_RPROMPT': 'rtn<timing<time',
-    'RP_MULTILINE_PROMPT': '❯',
-    'RP_TITLE': '{current_job:{} | }{cwd} | {user}@{hostname}',
-    'RP_TOOLBAR': None,
+    "RP_SEPARATORS": SEPARATORS["powerline"],
+    "RP_THEME": THEMES["repa"],
+    "RP_PROMPT": "ssh_who>cwd>virtualenv>branch",
+    "RP_PROMPT2": "❯❯❯",
+    "RP_RPROMPT": "timing<rtn<time",
+    "RP_MULTILINE_PROMPT": "❯",
+    "RP_TITLE": "{current_job:{} | }{cwd} | {user}@{hostname}",
+    "RP_TOOLBAR": None,
 }
 
-if ptk_shell_type() == 'prompt_toolkit2':
-    __xonsh__.env['PTK_STYLE_OVERRIDES']['bottom-toolbar'] = 'noreverse'
+if ptk_shell_type() == "prompt_toolkit2":
+    __xonsh__.env["PTK_STYLE_OVERRIDES"]["bottom-toolbar"] = "noreverse"
 
 
 def alias(f):
@@ -57,7 +76,9 @@ def register_section(f):
 
 
 def eval_section(section_str, theme):
-    section = SECTIONS[section_str]() if section_str in SECTIONS else str2section(section_str)
+    section = (
+        SECTIONS[section_str]() if section_str in SECTIONS else str2section(section_str)
+    )
     if section:
         content, fg, bg = section
         bg = theme[bg] if bg in theme else bg
@@ -68,29 +89,33 @@ def eval_section(section_str, theme):
 
 @register_section
 def who():
-    return Section(" {user}@{hostname} ", "C1", "B1")
+    return Section(" {user}@{hostname} ", "who_fg", "who_bg")
 
 
 @register_section
+def ssh_who():
+    if 'SSH_CLIENT' in __xonsh__.env:
+        return who()
+
+# TODO icon
+@register_section
 def cwd():
-    return Section(" {cwd} ", "C2", "B2")
+    return Section(" {cwd} ", "cwd_fg", "cwd_bg")
 
 
-# TODO colors
 @register_section
 def timing():
     if __xonsh__.history and __xonsh__.history.tss:
         tss = __xonsh__.history.tss[-1]
-        return Section(f" {(tss[1] - tss[0]):.2f}s ", 'WHITE', '#444')
+        return Section(f" {(tss[1] - tss[0]):.2f}s ", "timing_fg", "timing_bg")
 
 
-# TODO colors
 @register_section
 def time():
-    return Section(strftime(' %H:%M  '), 'BOLD_#FFF', 'BLUE')
+    return Section(strftime(" %H:%M  "), "time_fg", "time_bg")
 
 
-# TODO colors
+# TODO icons
 @register_section
 def branch():
     branch = prompt.vc.current_branch()
@@ -98,43 +123,45 @@ def branch():
         dwd = prompt.vc.dirty_working_directory()
         if dwd is None:
             # timeout
-            bgcolor = '#FD4'
+            color = "unknown"
         elif dwd:
             # dirty
-            bgcolor = '#E30'
+            color = "dirty"
         else:
             # clean
-            bgcolor = '#4F4'
+            color = "clean"
 
-        return Section(f'  {branch} ', '#000', bgcolor)
+        return Section(f"  {branch} ", f"branch_fg_{color}", f"branch_bg_{color}")
 
 
-# TODO colors
 @register_section
 def virtualenv():
-    if __xonsh__.env['PROMPT_FIELDS']['env_name']():
-        return Section(' 🐍 {env_name} ', 'INTENSE_CYAN', 'BLUE')
+    if __xonsh__.env["PROMPT_FIELDS"]["env_name"]():
+        return Section("  {env_name} ", "virtualenv_fg", "virtualenv_bg")
 
 
-# TODO colors
 @register_section
 def rtn():
     if __xonsh__.history and __xonsh__.history.rtns:
         rtn = __xonsh__.history.rtns[-1]
         if rtn:
-            fg = '#A00'
-            bg = '#FFF'
-            mark = ''
+            color = "error"
+            mark = ""
         else:
-            fg = '#4F4'
-            bg = '#666'
-            mark = ''
+            color = "ok"
+            mark = ""
 
-        return Section(f' {mark} ', fg, bg)
+        return Section(f" {mark} ", f"rtn_fg_{color}", f"rtn_bg_{color}")
+
+
+def triple_right():
+    return Section("{#C62828}❯{#FFC107}❯{#8BC34A}❯", "default_fg", "BLACK")
+SECTIONS["❯❯❯"] = triple_right
+
 
 # TODO color support
 def str2section(txt):
-    return Section(f" {txt} ", "C1", "B1")
+    return Section(f" {txt} ", "default_fg", "default_bg")
 
 
 def rp_prompt_builder(promptstring, right=False):
@@ -155,31 +182,34 @@ def rp_prompt_builder(promptstring, right=False):
         p = []
         size = len(sections)
         for i, sec in enumerate(sections):
-            last = (i == size - 1)
-            first = (i == 0)
+            last = i == size - 1
+            first = i == 0
 
             if right:
                 if not first and sections[i - 1].bg == sec.bg:
-                    p.append('{%s}%s%s' % (sec.fg, sep2, sec.content))
+                    p.append("{%s}%s%s" % (sec.fg, sep2, sec.content))
                 else:
-                    p.append('{%s}%s{BACKGROUND_%s}{%s}%s' % (sec.bg, sep1, sec.bg, sec.fg, sec.content))
+                    p.append(
+                        "{%s}%s{BACKGROUND_%s}{%s}%s"
+                        % (sec.bg, sep1, sec.bg, sec.fg, sec.content)
+                    )
             else:
                 if first:
-                    p.append('{BACKGROUND_%s}' % sec.bg)
+                    p.append("{BACKGROUND_%s}" % sec.bg)
 
-                p.append('{%s}%s' % (sec.fg, sec.content))
+                p.append("{%s}%s" % (sec.fg, sec.content))
 
                 if last:
-                    p.append('{NO_COLOR}{%s}%s{NO_COLOR} ' % (sec.bg, sep1))
+                    p.append("{NO_COLOR}{%s}%s{NO_COLOR} " % (sec.bg, sep1))
                 else:
                     bg1 = sec.bg
                     bg2 = sections[i + 1].bg
                     if bg1 == bg2:
-                        p.append('%s' % sep2)
+                        p.append("%s" % sep2)
                     else:
-                        p.append('{BACKGROUND_%s}{%s}%s' % (bg2, bg1, sep1))
+                        p.append("{BACKGROUND_%s}{%s}%s" % (bg2, bg1, sep1))
 
-        return ''.join(p)
+        return "".join(p)
 
     return prompt
 
@@ -188,57 +218,66 @@ def rp_prompt_builder(promptstring, right=False):
 def rp_set_separators(args):
     separators = ""
     if len(args) < 1:
-        separators = SEPARATORS['powerline']
-    elif (args[0] not in SEPARATORS and args[0] != 'custom'):
-        print('you need to select separators from the following ones:')
+        separators = SEPARATORS["powerline"]
+    elif args[0] not in SEPARATORS and args[0] != "custom":
+        print("you need to select separators from the following ones:")
         for s in SEPARATORS:
-            print(f'  - {s}')
-        print('  - custom [custom separators]')
+            print(f"  - {s}")
+        print("  - custom [custom separators]")
         return
 
-    if args[0] == 'custom':
+    if args[0] == "custom":
         if len(args) < 2:
-            print('please provide custom separators')
+            print("please provide custom separators")
             return
         else:
             separators = args[1][:4]
             if len(separators) < 4:
-                separators = separators + SEPARATORS['powerline'][len(separators):]
+                separators = separators + SEPARATORS["powerline"][len(separators) :]
     else:
         separators = SEPARATORS[args[0]]
 
-    __xonsh__.env['RP_SEPARATORS'] = separators
+    __xonsh__.env["RP_SEPARATORS"] = separators
 
 
 @alias
 def rp_set_theme(args):
     theme = ""
     if len(args) < 1:
-        theme = THEMES['repa']
-    elif (args[0] not in THEMES):
-        print('you need to select theme from the following ones:')
+        theme = THEMES["repa"]
+    elif args[0] not in THEMES:
+        print("you need to select theme from the following ones:")
         for t in THEMES:
-            print(f'  - {t}')
+            print(f"  - {t}")
         return
 
     theme = THEMES[args[0]]
 
-    __xonsh__.env['RP_THEME'] = theme
+    __xonsh__.env["RP_THEME"] = theme
+
+
+@alias
+def rp_sections():
+    print("Available sections:")
+    for section in SECTIONS:
+        print(f"  {section}")
 
 
 @alias
 def rp_build_prompt():
-    prompt_str = __xonsh__.env["RP_PROMPT"] or ''
-    prompt2_str = __xonsh__.env["RP_PROMPT2"] or ''
-    prompt = ''
-    prompt2 = ''
-    if prompt_str:
-        prompt = rp_prompt_builder(prompt_str)
+    prompt1_str = __xonsh__.env["RP_PROMPT"] or ""
+    prompt2_str = __xonsh__.env["RP_PROMPT2"] or ""
+    prompt1 = ""
+    prompt2 = ""
+    if prompt1_str:
+        prompt1 = rp_prompt_builder(prompt1_str)
     if prompt2_str:
         prompt2 = rp_prompt_builder(prompt2_str)
 
-    if prompt:
-        __xonsh__.env["PROMPT"] = prompt if not prompt2 else lambda: prompt() + '\n' + prompt2()
+    if prompt1:
+        __xonsh__.env["PROMPT"] = (
+            prompt1 if not prompt2 else lambda: prompt1() + "\n" + prompt2()
+        )
 
     rprompt_str = __xonsh__.env["RP_RPROMPT"]
     if rprompt_str:
