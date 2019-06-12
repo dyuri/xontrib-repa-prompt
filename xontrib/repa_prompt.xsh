@@ -3,6 +3,7 @@ Heavily inspired by: https://github.com/santagada/xontrib-powerline/
 """
 
 from collections import namedtuple
+import colorsys
 from time import strftime
 from xonsh.platform import ptk_shell_type
 from xonsh import prompt
@@ -50,16 +51,6 @@ THEMES = {
 
 SECTIONS = {}
 
-DEFAULTS = {
-    "RP_SEPARATORS": SEPARATORS["powerline"],
-    "RP_THEME": THEMES["repa"],
-    "RP_PROMPT": "ssh_who>cwd>virtualenv>branch",
-    "RP_PROMPT2": "❯❯❯",
-    "RP_RPROMPT": "timing<rtn<time",
-    "RP_MULTILINE_PROMPT": "❯",
-    "RP_TITLE": "{current_job:{} | }{cwd} | {user}@{hostname}",
-    "RP_TOOLBAR": None,
-}
 
 if ptk_shell_type() == "prompt_toolkit2":
     __xonsh__.env["PTK_STYLE_OVERRIDES"]["bottom-toolbar"] = "noreverse"
@@ -159,9 +150,30 @@ def triple_right():
 SECTIONS["❯❯❯"] = triple_right
 
 
+def rp_mlprompt(ch="❯", length=5):
+    step = 1 / length
+    mlprompt = []
+    for i in range(length):
+        h = i * step
+        s = 1
+        v = 1
+        rgb = colorsys.hsv_to_rgb(h, s, v)
+        mlprompt.append("{#%02x%02x%02x}" % (int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255)))
+
+    return ch.join(mlprompt)
+
 # TODO color support
 def str2section(txt):
-    return Section(f" {txt} ", "default_fg", "default_bg")
+    fg = "default_fg"
+    bg = "default_bg"
+    if "||" in txt:
+        txt, color = txt.split("||", 1)
+        if "|" in color:
+            fg, bg = color.split("|", 1)
+        else:
+            fg = color
+
+    return Section(f" {txt} ", fg, bg)
 
 
 def rp_prompt_builder(promptstring, right=False):
@@ -294,6 +306,18 @@ def rp_build_prompt():
     title = __xonsh__.env["RP_TITLE"]
     if title:
         __xonsh__.env["TITLE"] = title
+
+
+DEFAULTS = {
+    "RP_SEPARATORS": SEPARATORS["powerline"],
+    "RP_THEME": THEMES["repa"],
+    "RP_PROMPT": "||#000|#CDDC39>ssh_who>cwd>virtualenv>branch",
+    "RP_PROMPT2": "❯❯❯",
+    "RP_RPROMPT": "timing<rtn<time",
+    "RP_MULTILINE_PROMPT": rp_mlprompt("❯", 5),
+    "RP_TITLE": "{current_job:{} | }{cwd} | {user}@{hostname}",
+    "RP_TOOLBAR": None,
+}
 
 
 def rp_init():
