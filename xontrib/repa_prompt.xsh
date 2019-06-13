@@ -107,7 +107,7 @@ def ssh_who():
 
 @register_section
 def cwd():
-    pwd = prompt.cwd._collapsed_pwd()
+    pwd = prompt.cwd._replace_home_cwd()
     icons = theme("cwd_icons")
     icon = icons[2]
     if pwd == "~":
@@ -132,7 +132,6 @@ def time():
     return Section(strftime(" %H:%M  "), "time_fg", "time_bg")
 
 
-# TODO icons
 @register_section
 def branch():
     branch = prompt.vc.current_branch()
@@ -202,7 +201,7 @@ def str2section(txt):
     return Section(f" {txt} ", fg, bg)
 
 
-def rp_prompt_builder(promptstring, right=False):
+def rp_prompt_builder(promptstring, prompt_end="", right=False):
     separators = builtins.__xonsh__.env.get("RP_SEPARATORS", SEPARATORS["powerline"])
     sep = ">" if not right else "<"
     sep1 = separators[0] if not right else separators[1]
@@ -237,7 +236,7 @@ def rp_prompt_builder(promptstring, right=False):
                 p.append("{%s}%s" % (sec.fg, sec.content))
 
                 if last:
-                    p.append("{NO_COLOR}{%s}%s{NO_COLOR} " % (sec.bg, sep1))
+                    p.append("{NO_COLOR}{%s}%s{NO_COLOR}%s" % (sec.bg, sep1, prompt_end))
                 else:
                     bg1 = sec.bg
                     bg2 = sections[i + 1].bg
@@ -304,12 +303,13 @@ def rp_sections():
 def rp_build_prompt():
     prompt1_str = builtins.__xonsh__.env.get("RP_PROMPT", None)
     prompt2_str = builtins.__xonsh__.env.get("RP_PROMPT2", None)
+    prompt_end = builtins.__xonsh__.env.get("RP_PROMPT_END", "")
     prompt1 = ""
     prompt2 = ""
     if prompt1_str:
-        prompt1 = rp_prompt_builder(prompt1_str)
+        prompt1 = rp_prompt_builder(prompt1_str, prompt_end)
     if prompt2_str:
-        prompt2 = rp_prompt_builder(prompt2_str)
+        prompt2 = rp_prompt_builder(prompt2_str, prompt_end)
 
     if prompt1:
         builtins.__xonsh__.env["PROMPT"] = (
@@ -318,7 +318,7 @@ def rp_build_prompt():
 
     rprompt_str = builtins.__xonsh__.env.get("RP_RPROMPT", None)
     if rprompt_str:
-        builtins.__xonsh__.env["RIGHT_PROMPT"] = rp_prompt_builder(rprompt_str, True)
+        builtins.__xonsh__.env["RIGHT_PROMPT"] = rp_prompt_builder(rprompt_str, prompt_end, True)
 
     toolbar = builtins.__xonsh__.env.get("RP_TOOLBAR", None)
     if toolbar:
@@ -338,6 +338,7 @@ DEFAULTS = {
     "RP_THEME": THEMES["repa"],
     "RP_PROMPT": "||#000|#CDDC39>ssh_who>cwd>virtualenv>branch",
     "RP_PROMPT2": "❯❯❯",
+    "RP_PROMPT_END": "",
     "RP_RPROMPT": "timing<rtn<time",
     "RP_MULTILINE_PROMPT": rp_mlprompt("❯", 5),
     "RP_TITLE": "{current_job:{} | }{cwd} | {user}@{hostname}",
