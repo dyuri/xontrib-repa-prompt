@@ -2,6 +2,7 @@
 Heavily inspired by: https://github.com/santagada/xontrib-powerline/
 """
 
+import builtins
 from collections import namedtuple
 import colorsys
 from time import strftime
@@ -22,8 +23,8 @@ SEPARATORS = {
 }
 
 THEMES = {
-    # material colors
     "repa": {
+        # colors
         "default_fg": "#00BCD4",
         "default_bg": "#666",
         "who_fg": "BOLD_#333",
@@ -46,18 +47,22 @@ THEMES = {
         "time_bg": "#666",
         "virtualenv_fg": "#00BCD4",
         "virtualenv_bg": "#444",
+
+        # icons
+        "cwd_icons": "⚙",
     }
 }
+
 
 SECTIONS = {}
 
 
 if ptk_shell_type() == "prompt_toolkit2":
-    __xonsh__.env["PTK_STYLE_OVERRIDES"]["bottom-toolbar"] = "noreverse"
+    builtins.__xonsh__.env["PTK_STYLE_OVERRIDES"]["bottom-toolbar"] = "noreverse"
 
 
 def alias(f):
-    aliases[f.__name__] = f
+    builtins.aliases[f.__name__] = f
     return f
 
 
@@ -66,14 +71,26 @@ def register_section(f):
     return f
 
 
-def eval_section(section_str, theme):
+def theme(key):
+    """resolve key from theme, with fallback"""
+    current_theme = builtins.__xonsh__.env.get("RP_THEME", {})
+    default_theme = THEMES["repa"]
+
+    if key in current_theme:
+        return current_theme[key]
+    elif key in default_theme:
+        return default_theme[key]
+    return key
+
+
+def eval_section(section_str):
     section = (
         SECTIONS[section_str]() if section_str in SECTIONS else str2section(section_str)
     )
     if section:
         content, fg, bg = section
-        bg = theme[bg] if bg in theme else bg
-        fg = theme[fg] if fg in theme else fg
+        bg = theme(bg)
+        fg = theme(fg)
         if content:
             return Section(content, fg, bg)
 
@@ -85,19 +102,28 @@ def who():
 
 @register_section
 def ssh_who():
-    if 'SSH_CLIENT' in __xonsh__.env:
+    if 'SSH_CLIENT' in builtins.__xonsh__.env:
         return who()
 
-# TODO icon
 @register_section
 def cwd():
-    return Section(" {cwd} ", "cwd_fg", "cwd_bg")
+    pwd = prompt.cwd._collapsed_pwd()
+    icons = theme("cwd_icons")
+    icon = icons[2]
+    if pwd == "~":
+        icon = icons[0]
+    elif pwd[0] == "~":
+        icon = icons[1]
+    elif pwd.startswith("/etc"):
+        icon = icons[3]
+
+    return Section(f" {icon} {pwd} ", "cwd_fg", "cwd_bg")
 
 
 @register_section
 def timing():
-    if __xonsh__.history and __xonsh__.history.tss:
-        tss = __xonsh__.history.tss[-1]
+    if builtins.__xonsh__.history and builtins.__xonsh__.history.tss:
+        tss = builtins.__xonsh__.history.tss[-1]
         return Section(f" {(tss[1] - tss[0]):.2f}s ", "timing_fg", "timing_bg")
 
 
@@ -122,19 +148,19 @@ def branch():
             # clean
             color = "clean"
 
-        return Section(f"  {branch} ", f"branch_fg_{color}", f"branch_bg_{color}")
+        return Section(f"  {branch} ", f"branch_fg_{color}", f"branch_bg_{color}")
 
 
 @register_section
 def virtualenv():
-    if __xonsh__.env["PROMPT_FIELDS"]["env_name"]():
+    if builtins.__xonsh__.env["PROMPT_FIELDS"]["env_name"]():
         return Section("  {env_name} ", "virtualenv_fg", "virtualenv_bg")
 
 
 @register_section
 def rtn():
-    if __xonsh__.history and __xonsh__.history.rtns:
-        rtn = __xonsh__.history.rtns[-1]
+    if builtins.__xonsh__.history and builtins.__xonsh__.history.rtns:
+        rtn = builtins.__xonsh__.history.rtns[-1]
         if rtn:
             color = "error"
             mark = ""
@@ -177,8 +203,7 @@ def str2section(txt):
 
 
 def rp_prompt_builder(promptstring, right=False):
-    separators = __xonsh__.env["RP_SEPARATORS"]
-    theme = __xonsh__.env["RP_THEME"]
+    separators = builtins.__xonsh__.env.get("RP_SEPARATORS", SEPARATORS["powerline"])
     sep = ">" if not right else "<"
     sep1 = separators[0] if not right else separators[1]
     sep2 = separators[2] if not right else separators[3]
@@ -187,7 +212,7 @@ def rp_prompt_builder(promptstring, right=False):
         # evaluate section functions
         sections = []
         for part in promptstring.split(sep):
-            section = eval_section(part, theme)
+            section = eval_section(part)
             if section:
                 sections.append(section)
 
@@ -249,7 +274,7 @@ def rp_set_separators(args):
     else:
         separators = SEPARATORS[args[0]]
 
-    __xonsh__.env["RP_SEPARATORS"] = separators
+    builtins.__xonsh__.env["RP_SEPARATORS"] = separators
 
 
 @alias
@@ -265,7 +290,7 @@ def rp_set_theme(args):
 
     theme = THEMES[args[0]]
 
-    __xonsh__.env["RP_THEME"] = theme
+    builtins.__xonsh__.env["RP_THEME"] = theme
 
 
 @alias
@@ -277,8 +302,8 @@ def rp_sections():
 
 @alias
 def rp_build_prompt():
-    prompt1_str = __xonsh__.env["RP_PROMPT"] or ""
-    prompt2_str = __xonsh__.env["RP_PROMPT2"] or ""
+    prompt1_str = builtins.__xonsh__.env.get("RP_PROMPT", None)
+    prompt2_str = builtins.__xonsh__.env.get("RP_PROMPT2", None)
     prompt1 = ""
     prompt2 = ""
     if prompt1_str:
@@ -287,25 +312,25 @@ def rp_build_prompt():
         prompt2 = rp_prompt_builder(prompt2_str)
 
     if prompt1:
-        __xonsh__.env["PROMPT"] = (
+        builtins.__xonsh__.env["PROMPT"] = (
             prompt1 if not prompt2 else lambda: prompt1() + "\n" + prompt2()
         )
 
-    rprompt_str = __xonsh__.env["RP_RPROMPT"]
+    rprompt_str = builtins.__xonsh__.env.get("RP_RPROMPT", None)
     if rprompt_str:
-        __xonsh__.env["RIGHT_PROMPT"] = rp_prompt_builder(rprompt_str, True)
+        builtins.__xonsh__.env["RIGHT_PROMPT"] = rp_prompt_builder(rprompt_str, True)
 
-    toolbar = __xonsh__.env["RP_TOOLBAR"]
+    toolbar = builtins.__xonsh__.env.get("RP_TOOLBAR", None)
     if toolbar:
-        __xonsh__.env["TOOLBAR"] = rp_prompt_builder(toolbar)
+        builtins.__xonsh__.env["TOOLBAR"] = rp_prompt_builder(toolbar)
 
-    ml_prompt = __xonsh__.env["RP_MULTILINE_PROMPT"]
+    ml_prompt = builtins.__xonsh__.env.get("RP_MULTILINE_PROMPT", None)
     if ml_prompt:
-        __xonsh__.env["MULTILINE_PROMPT"] = ml_prompt
+        builtins.__xonsh__.env["MULTILINE_PROMPT"] = ml_prompt
 
-    title = __xonsh__.env["RP_TITLE"]
+    title = builtins.__xonsh__.env.get("RP_TITLE", None)
     if title:
-        __xonsh__.env["TITLE"] = title
+        builtins.__xonsh__.env["TITLE"] = title
 
 
 DEFAULTS = {
@@ -322,8 +347,8 @@ DEFAULTS = {
 
 def rp_init():
     for setting in DEFAULTS:
-        if setting not in __xonsh__.env:
-            __xonsh__.env[setting] = DEFAULTS[setting]
+        if setting not in builtins.__xonsh__.env:
+            builtins.__xonsh__.env[setting] = DEFAULTS[setting]
 
     rp_build_prompt()
 
