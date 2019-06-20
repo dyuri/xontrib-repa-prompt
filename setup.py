@@ -8,8 +8,8 @@ except (IOError, OSError):
 
 setup(
     name="xontrib-repa-prompt",
-    version='0.0.1',
-    url='TODO',
+    version='0.0.2',
+    url='https://bitbucket.org/dyuri/xontrib-repa-prompt/',
     license='MIT',
     author='Gyuri Horák',
     author_email='dyuri@horak.hu',
@@ -20,6 +20,7 @@ setup(
     package_dir={'xontrib': 'xontrib'},
     package_data={'xontrib': ['*.xsh']},
     platforms='any',
+    data_files=[("", ["LICENSE.txt"])],
     classifiers=[
         'Environment :: Console',
         'Intended Audience :: End Users/Desktop',
