@@ -5,6 +5,7 @@ Heavily inspired by: https://github.com/santagada/xontrib-powerline/
 import builtins
 from collections import namedtuple
 import colorsys
+import os
 from time import strftime
 from xonsh.platform import ptk_shell_type
 from xonsh import prompt
@@ -152,8 +153,10 @@ def branch():
 
 @register_section
 def virtualenv():
-    if builtins.__xonsh__.env["PROMPT_FIELDS"]["env_name"]():
-        return Section("  {env_name} ", "virtualenv_fg", "virtualenv_bg")
+    venv = builtins.__xonsh__.env.get("VIRTUAL_ENV", None)
+    if venv:
+        env_name = os.path.basename(venv)
+        return Section(f"  {env_name} ", "virtualenv_fg", "virtualenv_bg")
 
 
 @register_section
