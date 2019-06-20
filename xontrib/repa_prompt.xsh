@@ -354,6 +354,11 @@ def rp_init():
         if setting not in builtins.__xonsh__.env:
             builtins.__xonsh__.env[setting] = DEFAULTS[setting]
 
+    theme = builtins.__xonsh__.env["RP_THEME"]
+    if type(theme) == str:
+        theme = THEMES.get(theme, THEMES["repa"])
+        builtins.__xonsh__.env["RP_THEME"] = theme
+
     rp_build_prompt()
 
 
