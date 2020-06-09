@@ -6,8 +6,9 @@ import builtins
 from collections import namedtuple
 import colorsys
 import os
+import shlex
+import re
 from time import strftime
-from xonsh.platform import ptk_shell_type
 from xonsh import prompt
 
 __all__ = ()
@@ -51,15 +52,77 @@ THEMES = {
 
         # icons
         "cwd_icons": "⚙",
-    }
+    },
+    # from https://github.com/morhetz/gruvbox
+    "gruvbox": {
+        "default_fg": "#458588",
+        "who_fg": "BOLD_#282828",
+        "who_bg": "#b8bb26",
+        "cwd_fg": "#b8bb26",
+        "cwd_bg": "#504945",
+        "branch_fg_unknown": "#fe8019",
+        "branch_fg_dirty": "#fb4943",
+        "branch_fg_clean": "#8ec07c",
+        "branch_bg_unknown": "#282828",
+        "branch_bg_dirty": "#282828",
+        "branch_bg_clean": "#282828",
+        "timing_fg": "#665c54",
+        "timing_bg": "#1d2021",
+        "rtn_fg_ok": "#8ec07c",
+        "rtn_fg_error": "#fb4943",
+        "rtn_bg_ok": "#504945",
+        "rtn_bg_error": "#fbf1c7",
+        "time_fg": "#fabd2f",
+        "time_bg": "#665c54",
+        "virtualenv_fg": "#83a598",
+        "virtualenv_bg": "#3c3836",
+    },
+    "_current": None
 }
 
 
 SECTIONS = {}
 
 
-if ptk_shell_type() == "prompt_toolkit2":
-    builtins.__xonsh__.env["PTK_STYLE_OVERRIDES"]["bottom-toolbar"] = "noreverse"
+builtins.__xonsh__.env["PTK_STYLE_OVERRIDES"]["bottom-toolbar"] = "noreverse"
+
+
+# bashisms like command extension
+@events.on_transform_command
+def bash_preproc(cmd, **kw):
+    bang_previous = {
+        "!": lambda x: x,
+        "$": lambda x: shlex.split(x)[-1],
+        "^": lambda x: shlex.split(x)[0],
+        "*": lambda x: " ".join(shlex.split(x)[1:]),
+    }
+
+    def replace_bang(m):
+        arg = m.group(1)
+        inputs = builtins.__xonsh__.history.inps
+
+        # Dissect the previous command.
+        if arg in bang_previous:
+            try:
+                return bang_previous[arg](inputs[-1])
+            except IndexError:
+                print("xonsh: no history for '!{}'".format(arg))
+                return ""
+
+        # Look back in history for a matching command.
+        else:
+            try:
+                return next((x for x in reversed(inputs) if x.startswith(arg)))
+            except StopIteration:
+                print("xonsh: no previous commands match '!{}'".format(arg))
+                return ""
+
+    newcmd = re.sub(r"!([!$^*]|[\w]+)", replace_bang, cmd)
+
+    if newcmd != cmd and builtins.__xonsh__.env.get("RP_BASHISMS_SHOW", False):
+        print("=> {}".format(newcmd))
+
+    return newcmd
 
 
 def alias(f):
@@ -72,16 +135,22 @@ def register_section(f):
     return f
 
 
+# update default theme with the custom values
+def refresh_current_theme():
+    _theme = {}
+    _theme.update(THEMES["repa"])
+    _theme.update(builtins.__xonsh__.env.get("RP_THEME", {}))
+
+    THEMES["_current"] = _theme
+
+
 def theme(key):
     """resolve key from theme, with fallback"""
-    current_theme = builtins.__xonsh__.env.get("RP_THEME", {})
-    default_theme = THEMES["repa"]
+    _theme = THEMES["_current"]
+    if _theme is None:
+        refresh_current_theme()
 
-    if key in current_theme:
-        return current_theme[key]
-    elif key in default_theme:
-        return default_theme[key]
-    return key
+    return _theme.get(key, key)
 
 
 def eval_section(section_str):
@@ -281,18 +350,20 @@ def rp_set_separators(args):
 
 @alias
 def rp_set_theme(args):
-    theme = ""
+    _theme = {}
     if len(args) < 1:
-        theme = THEMES["repa"]
+        refresh_current_theme()
+        return
     elif args[0] not in THEMES:
         print("you need to select theme from the following ones:")
         for t in THEMES:
             print(f"  - {t}")
         return
 
-    theme = THEMES[args[0]]
+    _theme = THEMES[args[0]]
 
-    builtins.__xonsh__.env["RP_THEME"] = theme
+    builtins.__xonsh__.env["RP_THEME"] = _theme
+    refresh_current_theme()
 
 
 @alias
@@ -338,8 +409,8 @@ def rp_build_prompt():
 
 DEFAULTS = {
     "RP_SEPARATORS": SEPARATORS["powerline"],
-    "RP_THEME": THEMES["repa"],
-    "RP_PROMPT": "||#000|#CDDC39>ssh_who>cwd>virtualenv>branch",
+    "RP_THEME": {},
+    "RP_PROMPT": "||#000|cwd_fg>ssh_who>cwd>virtualenv>branch",
     "RP_PROMPT2": "❯❯❯",
     "RP_PROMPT_END": "",
     "RP_RPROMPT": "timing<rtn<time",
