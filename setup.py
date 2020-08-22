@@ -8,7 +8,7 @@ except (IOError, OSError):
 
 setup(
     name="xontrib-repa-prompt",
-    version='0.0.4',
+    version='0.0.5',
     url='https://github.com/dyuri/xontrib-repa-prompt',
     license='MIT',
     author='Gyuri Horák',
